@@ -30,11 +30,37 @@ import time
 import epdconfig
 
 import PIL
-from PIL import Image
+from PIL import Image, ImageOps, ImageChops
 import io
 
 EPD_WIDTH       = 1200
 EPD_HEIGHT      = 1600
+
+BAYER_8x8 = [
+    [0, 48, 12, 60, 3, 51, 15, 63],
+    [32, 16, 44, 28, 35, 19, 47, 31],
+    [8, 56, 4, 52, 11, 59, 7, 55],
+    [40, 24, 36, 20, 43, 27, 39, 23],
+    [2, 50, 14, 62, 1, 49, 13, 61],
+    [34, 18, 46, 30, 33, 17, 45, 29],
+    [10, 58, 6, 54, 9, 57, 5, 53],
+    [42, 26, 38, 22, 41, 25, 37, 21],
+]
+
+def _build_bayer_mask(size, amplitude=24):
+    base = []
+    scale = 2 * amplitude
+    for row in BAYER_8x8:
+        for value in row:
+            normalized = int((value / 63.0) * scale)
+            base.append(normalized)
+    pattern = Image.new("L", (8, 8))
+    pattern.putdata(base)
+    return pattern.resize(size, resample=Image.NEAREST)
+
+def _ordered_chroma(channel, amplitude=24):
+    pattern = _build_bayer_mask(channel.size, amplitude)
+    return ImageChops.add(channel, pattern, scale=1.0, offset=-amplitude)
 
 class EPD():
     def __init__(self):
@@ -251,11 +277,24 @@ class EPD():
         else:
             print("Invalid image dimensions: %d x %d, expected %d x %d" % (imwidth, imheight, self.width, self.height))
 
+        # Pre-process with gamma + channel-aware dithering before palette reduction
+        image_rgb = image_temp.convert("RGB")
+        gamma_corrected = ImageOps.autocontrast(ImageOps.gamma(image_rgb, 0.92))
+        l_channel, a_channel, b_channel = gamma_corrected.convert("LAB").split()
+
+        l_dithered = l_channel.quantize(
+            colors=32,
+            dither=Image.FLOYDSTEINBERG
+        ).convert("L")
+        a_weighted = _ordered_chroma(a_channel, amplitude=18)
+        b_weighted = _ordered_chroma(b_channel, amplitude=14)
+
+        lab_recombined = Image.merge("LAB", (l_dithered, a_weighted, b_weighted)).convert("RGB")
+
         # Two-stage quantization:
         #   1. reduce to a richer 16-color palette with error diffusion
-        #   2. project onto the tuned 7-color Spectra palette
-        image_rgb = image_temp.convert("RGB")
-        intermediate = image_rgb.quantize(
+        #   2. project onto the tuned 7-color Spectra palette with adjustable error gain
+        intermediate = lab_recombined.quantize(
             colors=16,
             method=Image.FASTOCTREE,
             dither=Image.FLOYDSTEINBERG
@@ -263,6 +302,14 @@ class EPD():
         image_7color = intermediate.quantize(
             palette=pal_image,
             dither=Image.FLOYDSTEINBERG
+        )
+
+        # Adjustable error gain: blend a touch of the richer intermediate back in
+        ERROR_GAIN = 0.15
+        blended = Image.blend(image_7color.convert("RGB"), intermediate, ERROR_GAIN)
+        image_7color = blended.quantize(
+            palette=pal_image,
+            dither=Image.NONE
         )
         buf_7color = bytearray(image_7color.tobytes('raw'))
 
