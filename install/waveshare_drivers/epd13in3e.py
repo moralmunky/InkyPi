@@ -225,10 +225,22 @@ class EPD():
         self.CS_ALL(1)
     
     def getbuffer(self, image):
-        # Create a pallette with the 7 colors supported by the panel
-        pal_image = Image.new("P", (1,1))
-        pal_image.putpalette( (0,0,0,  255,255,255,  255,255,0,  255,0,0,  0,0,0,  0,0,255,  0,255,0) + (0,0,0)*249)
-        # pal_image.putpalette( (0,0,0,  255,255,255,  0,255,0,   0,0,255,  255,0,0,  255,255,0, 255,128,0) + (0,0,0)*249)
+        # Tuned 7-color palette aimed at the Spectra 6 primaries
+        palette_colors = [
+            (8, 8, 8),        # deep black to preserve shadow detail
+            (248, 248, 248),  # slightly warm white to avoid clipping
+            (255, 228, 0),    # yellow ink
+            (220, 32, 32),    # red ink
+            (255, 135, 20),   # orange ink
+            (0, 70, 200),     # blue ink
+            (0, 170, 0),      # green ink
+        ]
+        pal_image = Image.new("P", (1, 1))
+        flat_palette = []
+        for color in palette_colors:
+            flat_palette.extend(color)
+        flat_palette.extend([0, 0, 0] * (256 - len(palette_colors)))
+        pal_image.putpalette(flat_palette)
 
         # Check if we need to rotate the image
         imwidth, imheight = image.size
@@ -239,8 +251,19 @@ class EPD():
         else:
             print("Invalid image dimensions: %d x %d, expected %d x %d" % (imwidth, imheight, self.width, self.height))
 
-        # Convert the soruce image to the 7 colors, dithering if needed
-        image_7color = image_temp.convert("RGB").quantize(palette=pal_image,dither=Image.FLOYDSTEINBERG)
+        # Two-stage quantization:
+        #   1. reduce to a richer 16-color palette with error diffusion
+        #   2. project onto the tuned 7-color Spectra palette
+        image_rgb = image_temp.convert("RGB")
+        intermediate = image_rgb.quantize(
+            colors=16,
+            method=Image.FASTOCTREE,
+            dither=Image.FLOYDSTEINBERG
+        ).convert("RGB")
+        image_7color = intermediate.quantize(
+            palette=pal_image,
+            dither=Image.FLOYDSTEINBERG
+        )
         buf_7color = bytearray(image_7color.tobytes('raw'))
 
         # PIL does not support 4 bit color, so pack the 4 bits of color
