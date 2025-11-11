@@ -60,7 +60,56 @@ def resize_image(image, desired_size, image_settings=[]):
     # Step 3: Resize to the exact desired dimensions (if necessary)
     return image.resize((desired_width, desired_height), Image.LANCZOS)
 
-def apply_image_enhancement(img, image_settings={}):
+def _clamp8(value):
+    return max(0, min(255, int(value)))
+
+
+def _apply_vibrance(img, amount):
+    if abs(amount) < 1e-3:
+        return img
+
+    hsv = img.convert("HSV")
+    h_channel, s_channel, v_channel = hsv.split()
+    if amount >= 0:
+        lut = [_clamp8(i + (255 - i) * amount) for i in range(256)]
+    else:
+        lut = [_clamp8(i + i * amount) for i in range(256)]
+    s_channel = s_channel.point(lut)
+    return Image.merge("HSV", (h_channel, s_channel, v_channel)).convert(img.mode)
+
+
+def _apply_temperature_tint(img, temperature, tint):
+    result = img
+
+    if abs(temperature) > 1e-3:
+        strength = min(0.5, abs(temperature) * 0.2)
+        warm_color = (255, 200, 140)
+        cool_color = (130, 190, 255)
+        overlay_color = warm_color if temperature > 0 else cool_color
+        overlay = Image.new("RGB", img.size, overlay_color)
+        result = Image.blend(result, overlay, strength)
+
+    if abs(tint) > 1e-3:
+        strength = min(0.5, abs(tint) * 0.2)
+        magenta = (255, 160, 210)
+        green = (180, 255, 190)
+        overlay_color = magenta if tint > 0 else green
+        overlay = Image.new("RGB", img.size, overlay_color)
+        result = Image.blend(result, overlay, strength)
+
+    return result
+
+
+def _apply_clarity(img, clarity):
+    if clarity <= 0:
+        return img
+    radius = 1.0 + (clarity * 2.0)
+    percent = 150 + int(clarity * 150)
+    return img.filter(ImageFilter.UnsharpMask(radius=radius, percent=percent, threshold=2))
+
+
+def apply_image_enhancement(img, image_settings=None):
+    image_settings = image_settings or {}
 
     # Apply Brightness
     img = ImageEnhance.Brightness(img).enhance(image_settings.get("brightness", 1.0))
@@ -71,8 +120,37 @@ def apply_image_enhancement(img, image_settings={}):
     # Apply Saturation (Color)
     img = ImageEnhance.Color(img).enhance(image_settings.get("saturation", 1.0))
 
+    # Apply Vibrance (selective saturation)
+    img = _apply_vibrance(img, image_settings.get("vibrance", 0.0))
+
     # Apply Sharpness
     img = ImageEnhance.Sharpness(img).enhance(image_settings.get("sharpness", 1.0))
+
+    # Apply Gamma
+    gamma = image_settings.get("gamma", 1.0)
+    if abs(gamma - 1.0) > 1e-3:
+        img = ImageOps.gamma(img, gamma)
+
+    # Apply temperature/tint shifts
+    img = _apply_temperature_tint(
+        img,
+        image_settings.get("temperature", 0.0),
+        image_settings.get("tint", 0.0),
+    )
+
+    # Apply clarity (local contrast/sharpen)
+    img = _apply_clarity(img, image_settings.get("clarity", 0.0))
+
+    # Apply denoise/blur
+    denoise = image_settings.get("denoise", 0.0)
+    if denoise > 0:
+        img = img.filter(ImageFilter.GaussianBlur(radius=denoise))
+
+    # Posterize to limit tones
+    posterize_bits = image_settings.get("posterize_bits")
+    if posterize_bits:
+        bits = max(1, min(8, int(posterize_bits)))
+        img = ImageOps.posterize(img, bits)
 
     return img
 

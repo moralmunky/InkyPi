@@ -3,5 +3,18 @@
     "orientation": "horizontal",
     "inverted_image": false,
     "scheduler_sleep_time": 60,
-    "startup": true
+    "startup": true,
+    "image_settings": {
+        "brightness": 1.0,
+        "contrast": 1.0,
+        "saturation": 1.0,
+        "sharpness": 1.0,
+        "gamma": 1.0,
+        "vibrance": 0.0,
+        "temperature": 0.0,
+        "tint": 0.0,
+        "clarity": 0.0,
+        "denoise": 0.0,
+        "posterize_bits": 0
+    }
 }
