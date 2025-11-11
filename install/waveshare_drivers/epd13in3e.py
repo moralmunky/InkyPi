@@ -260,6 +260,10 @@ class EPD():
             (255, 128, 0),    # orange ink
             (0, 0, 255),      # blue ink
             (0, 200, 0),      # green ink
+            (255, 64, 160),   # magenta-ish blend
+            (0, 180, 180),    # cyan-ish blend
+            (120, 0, 255),    # violet bridge
+            (255, 200, 0),    # amber bridge
         ]
         pal_image = Image.new("P", (1, 1))
         flat_palette = []
