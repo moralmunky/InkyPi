@@ -65,10 +65,13 @@ class WaveshareDisplay(AbstractDisplay):
 
             display_args_spec = inspect.getfullargspec(self.epd_display.display)
             display_args = display_args_spec.args
-        except ModuleNotFoundError:
-            raise ValueError(f"Unsupported Waveshare display type: {display_type}")
-        except AttributeError:
-            raise ValueError(f"Display does not support required methods: {display_type}")
+        except ModuleNotFoundError as exc:
+            raise ValueError(f"Unsupported Waveshare display type: {display_type}") from exc
+        except AttributeError as exc:
+            logger.exception("Failed to initialize Waveshare driver '%s'", display_type)
+            raise ValueError(
+                f"Display does not support required methods: {display_type}. Missing: {exc}"
+            ) from exc
 
         self.bi_color_display = len(display_args_spec.args) > 2
 
