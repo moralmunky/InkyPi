@@ -30,7 +30,7 @@ import time
 import epdconfig
 
 import PIL
-from PIL import Image, ImageOps, ImageChops
+from PIL import Image, ImageOps, ImageChops, ImageEnhance
 import io
 
 EPD_WIDTH       = 1200
@@ -253,13 +253,13 @@ class EPD():
     def getbuffer(self, image):
         # Tuned 7-color palette aimed at the Spectra 6 primaries
         palette_colors = [
-            (8, 8, 8),        # deep black to preserve shadow detail
-            (248, 248, 248),  # slightly warm white to avoid clipping
-            (255, 228, 0),    # yellow ink
-            (220, 32, 32),    # red ink
-            (255, 135, 20),   # orange ink
-            (0, 70, 200),     # blue ink
-            (0, 170, 0),      # green ink
+            (0, 0, 0),        # deep black
+            (255, 255, 255),  # pure white
+            (255, 255, 0),    # yellow ink
+            (255, 0, 0),      # red ink
+            (255, 128, 0),    # orange ink
+            (0, 0, 255),      # blue ink
+            (0, 200, 0),      # green ink
         ]
         pal_image = Image.new("P", (1, 1))
         flat_palette = []
@@ -277,17 +277,25 @@ class EPD():
         else:
             print("Invalid image dimensions: %d x %d, expected %d x %d" % (imwidth, imheight, self.width, self.height))
 
-        # Pre-process with gamma + channel-aware dithering before palette reduction
+        # Pre-process with gamma + saturation boost + channel-aware dithering before palette reduction
         image_rgb = image_temp.convert("RGB")
-        gamma_corrected = ImageOps.autocontrast(ImageOps.gamma(image_rgb, 0.92))
-        l_channel, a_channel, b_channel = gamma_corrected.convert("LAB").split()
+        saturated = ImageOps.autocontrast(ImageOps.gamma(image_rgb, 1.08))
+        saturated = ImageEnhance.Color(saturated).enhance(1.15)
+
+        hsv = saturated.convert("HSV")
+        h_channel, s_channel, v_channel = hsv.split()
+        s_channel = ImageEnhance.Brightness(s_channel).enhance(1.2)
+        hsv = Image.merge("HSV", (h_channel, s_channel, v_channel))
+        saturation_first = hsv.convert("RGB")
+
+        l_channel, a_channel, b_channel = saturation_first.convert("LAB").split()
 
         l_dithered = l_channel.quantize(
             colors=32,
             dither=Image.FLOYDSTEINBERG
         ).convert("L")
-        a_weighted = _ordered_chroma(a_channel, amplitude=18)
-        b_weighted = _ordered_chroma(b_channel, amplitude=14)
+        a_weighted = _ordered_chroma(a_channel, amplitude=10)
+        b_weighted = _ordered_chroma(b_channel, amplitude=8)
 
         lab_recombined = Image.merge("LAB", (l_dithered, a_weighted, b_weighted)).convert("RGB")
 
@@ -305,7 +313,7 @@ class EPD():
         )
 
         # Adjustable error gain: blend a touch of the richer intermediate back in
-        ERROR_GAIN = 0.15
+        ERROR_GAIN = 0.05
         blended = Image.blend(image_7color.convert("RGB"), intermediate, ERROR_GAIN)
         image_7color = blended.quantize(
             palette=pal_image,
