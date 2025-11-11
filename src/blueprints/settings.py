@@ -5,6 +5,7 @@ import os
 import pytz
 import logging
 import io
+from PIL import Image
 
 # Try to import cysystemd for journal reading (Linux only)
 try:
@@ -52,19 +53,38 @@ def save_settings():
         if plugin_cycle_interval_seconds > 86400 or plugin_cycle_interval_seconds <= 0:
             return jsonify({"error": "Plugin cycle interval must be less than 24 hours"}), 400
 
+        def _get_float(name, default="0.0"):
+            try:
+                return float(form_data.get(name, default))
+            except (TypeError, ValueError):
+                return float(default)
+
+        def _get_int(name, default="0"):
+            try:
+                return int(form_data.get(name, default))
+            except (TypeError, ValueError):
+                return int(default)
+
         settings = {
             "name": form_data.get("deviceName"),
             "orientation": form_data.get("orientation"),
-            "inverted_image": form_data.get("invertImage"),
-            "log_system_stats": form_data.get("logSystemStats"),
+            "inverted_image": bool(form_data.get("invertImage")),
+            "log_system_stats": bool(form_data.get("logSystemStats")),
             "timezone": form_data.get("timezoneName"),
             "time_format": form_data.get("timeFormat"),
             "plugin_cycle_interval_seconds": plugin_cycle_interval_seconds,
             "image_settings": {
-                "saturation": float(form_data.get("saturation", "1.0")),
-                "brightness": float(form_data.get("brightness", "1.0")),
-                "sharpness": float(form_data.get("sharpness", "1.0")),
-                "contrast": float(form_data.get("contrast", "1.0"))
+                "saturation": _get_float("saturation", "1.0"),
+                "brightness": _get_float("brightness", "1.0"),
+                "sharpness": _get_float("sharpness", "1.0"),
+                "contrast": _get_float("contrast", "1.0"),
+                "gamma": _get_float("gamma", "1.0"),
+                "vibrance": _get_float("vibrance", "0.0"),
+                "temperature": _get_float("temperature", "0.0"),
+                "tint": _get_float("tint", "0.0"),
+                "clarity": _get_float("clarity", "0.0"),
+                "denoise": _get_float("denoise", "0.0"),
+                "posterize_bits": _get_int("posterize_bits", "0")
             }
         }
         device_config.update_config(settings)
@@ -78,6 +98,33 @@ def save_settings():
     except Exception as e:
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
     return jsonify({"success": True, "message": "Saved settings."})
+
+@settings_bp.route('/refresh_display', methods=['POST'])
+def refresh_display():
+    device_config = current_app.config['DEVICE_CONFIG']
+    display_manager = current_app.config['DISPLAY_MANAGER']
+
+    image_path = device_config.current_image_file
+    if not os.path.exists(image_path):
+        return jsonify({"error": "No current image available to refresh."}), 404
+
+    try:
+        with Image.open(image_path) as img:
+            current_image = img.copy()
+    except Exception as e:
+        logger.exception("Failed to load current image for refresh: %s", e)
+        return jsonify({"error": "Unable to load the current image."}), 500
+
+    try:
+        display_manager.display_image(
+            current_image,
+            image_settings=device_config.get_config("image_settings", {})
+        )
+    except Exception as e:
+        logger.exception("Failed to refresh display: %s", e)
+        return jsonify({"error": "Failed to refresh the display."}), 500
+
+    return jsonify({"success": True, "message": "Display refresh triggered."})
 
 @settings_bp.route('/shutdown', methods=['POST'])
 def shutdown():
@@ -143,4 +190,3 @@ def download_logs():
     except Exception as e:
         logger.error(f"Error reading logs: {e}")
         return Response(f"Error reading logs: {e}", status=500, mimetype="text/plain")
-

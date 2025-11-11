@@ -79,10 +79,28 @@
             });
         }
 
+        async function handleRefresh() {
+            try {
+                const response = await fetch("{{ url_for('settings.refresh_display') }}", {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    showResponseModal('success', result.message || 'Display refresh triggered.');
+                } else {
+                    showResponseModal('failure', result.error || 'Failed to refresh display.');
+                }
+            } catch (error) {
+                showResponseModal('failure', 'An error occurred while refreshing the display.');
+            }
+        }
+
 
         function updateSliderValue(slider) {
             const valueDisplay = document.getElementById(`${slider.id}-value`);
-            valueDisplay.textContent = parseFloat(slider.value).toFixed(1);
+            if (!valueDisplay) return;
+            const precision = parseInt(slider.dataset.precision || "1", 10);
+            valueDisplay.textContent = parseFloat(slider.value).toFixed(precision);
         }
         document.addEventListener('DOMContentLoaded', populateIntervalFields);
     </script>
@@ -100,6 +118,7 @@
                 </div>
                 <div>
                     <a class="header-button" style="text-decoration: none; background-color: #2c66b1; color: #fff;" href="{{ url_for('settings.download_logs', hours=24) }}" download>Download Logs</a>
+                    <button class="header-button" style="background-color: #2ecc71; color: #fff;" onclick="handleRefresh()">Refresh</button>
                     <button class="header-button" style="background-color: #FFD600; color: #333;" onclick="handleShutdown(true)">Reboot</button>
                     <button class="header-button" style="background-color: #E53935; color: #fff;" onclick="handleShutdown(false)">Shutdown</button>
                 </div>
@@ -241,6 +260,111 @@
                                 class="form-input"
                                 min="0" max="2" step="0.1"
                                 value="{{ device_settings.get('image_settings', {}).get('brightness', 1.0) }}"
+                                style="max-width: 400px;"
+                                oninput="updateSliderValue(this)"
+                            />
+                        </div>
+                        <div class="form-group">
+                            <label for="gamma" class="form-label" style="min-width: 100px;">Gamma:</label>
+                            <span id="gamma-value">{{ device_settings.get('image_settings', {}).get('gamma', 1.0) }}</span>
+                            <input
+                                type="range"
+                                id="gamma"
+                                name="gamma"
+                                class="form-input"
+                                min="0.5" max="2.0" step="0.05"
+                                data-precision="2"
+                                value="{{ device_settings.get('image_settings', {}).get('gamma', 1.0) }}"
+                                style="max-width: 400px;"
+                                oninput="updateSliderValue(this)"
+                            />
+                        </div>
+                        <div class="form-group">
+                            <label for="vibrance" class="form-label" style="min-width: 100px;">Vibrance:</label>
+                            <span id="vibrance-value">{{ device_settings.get('image_settings', {}).get('vibrance', 0.0) }}</span>
+                            <input
+                                type="range"
+                                id="vibrance"
+                                name="vibrance"
+                                class="form-input"
+                                min="-1.0" max="1.0" step="0.1"
+                                data-precision="1"
+                                value="{{ device_settings.get('image_settings', {}).get('vibrance', 0.0) }}"
+                                style="max-width: 400px;"
+                                oninput="updateSliderValue(this)"
+                            />
+                        </div>
+                        <div class="form-group">
+                            <label for="temperature" class="form-label" style="min-width: 100px;">Temperature:</label>
+                            <span id="temperature-value">{{ device_settings.get('image_settings', {}).get('temperature', 0.0) }}</span>
+                            <input
+                                type="range"
+                                id="temperature"
+                                name="temperature"
+                                class="form-input"
+                                min="-1.0" max="1.0" step="0.1"
+                                data-precision="1"
+                                value="{{ device_settings.get('image_settings', {}).get('temperature', 0.0) }}"
+                                style="max-width: 400px;"
+                                oninput="updateSliderValue(this)"
+                            />
+                        </div>
+                        <div class="form-group">
+                            <label for="tint" class="form-label" style="min-width: 100px;">Tint:</label>
+                            <span id="tint-value">{{ device_settings.get('image_settings', {}).get('tint', 0.0) }}</span>
+                            <input
+                                type="range"
+                                id="tint"
+                                name="tint"
+                                class="form-input"
+                                min="-1.0" max="1.0" step="0.1"
+                                data-precision="1"
+                                value="{{ device_settings.get('image_settings', {}).get('tint', 0.0) }}"
+                                style="max-width: 400px;"
+                                oninput="updateSliderValue(this)"
+                            />
+                        </div>
+                        <div class="form-group">
+                            <label for="clarity" class="form-label" style="min-width: 100px;">Clarity:</label>
+                            <span id="clarity-value">{{ device_settings.get('image_settings', {}).get('clarity', 0.0) }}</span>
+                            <input
+                                type="range"
+                                id="clarity"
+                                name="clarity"
+                                class="form-input"
+                                min="0.0" max="1.0" step="0.05"
+                                data-precision="2"
+                                value="{{ device_settings.get('image_settings', {}).get('clarity', 0.0) }}"
+                                style="max-width: 400px;"
+                                oninput="updateSliderValue(this)"
+                            />
+                        </div>
+                        <div class="form-group">
+                            <label for="denoise" class="form-label" style="min-width: 100px;">Denoise:</label>
+                            <span id="denoise-value">{{ device_settings.get('image_settings', {}).get('denoise', 0.0) }}</span>
+                            <input
+                                type="range"
+                                id="denoise"
+                                name="denoise"
+                                class="form-input"
+                                min="0.0" max="3.0" step="0.1"
+                                data-precision="1"
+                                value="{{ device_settings.get('image_settings', {}).get('denoise', 0.0) }}"
+                                style="max-width: 400px;"
+                                oninput="updateSliderValue(this)"
+                            />
+                        </div>
+                        <div class="form-group">
+                            <label for="posterize_bits" class="form-label" style="min-width: 100px;">Posterize Bits:</label>
+                            <span id="posterize_bits-value">{{ device_settings.get('image_settings', {}).get('posterize_bits', 0) }}</span>
+                            <input
+                                type="range"
+                                id="posterize_bits"
+                                name="posterize_bits"
+                                class="form-input"
+                                min="0" max="8" step="1"
+                                data-precision="0"
+                                value="{{ device_settings.get('image_settings', {}).get('posterize_bits', 0) }}"
                                 style="max-width: 400px;"
                                 oninput="updateSliderValue(this)"
                             />
