@@ -18,6 +18,7 @@ bold=$(tput bold)
 normal=$(tput sgr0)
 red=$(tput setaf 1)
 green=$(tput setaf 2)
+yellow=$(tput setaf 3)
 
 SOURCE=${BASH_SOURCE[0]}
 while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
@@ -187,6 +188,53 @@ show_loader() {
   fi
 }
 
+install_waveshare_native_libraries() {
+  local LIB_SOURCE_DIR="$SCRIPT_DIR/waveshare_drivers"
+  local TARGET_DIR="/usr/local/lib"
+
+  local SYSTEM_BITS
+  SYSTEM_BITS=$(getconf LONG_BIT 2>/dev/null)
+  SYSTEM_BITS=${SYSTEM_BITS:-64}
+
+  if [[ "$SYSTEM_BITS" != "64" ]]; then
+    echo_warning "\tNo 32-bit Waveshare native libraries bundled; skipping DEV_Config install."
+    return
+  fi
+
+  local IS_PI5=0
+  if grep -q "Raspberry Pi 5" /proc/cpuinfo 2>/dev/null; then
+    IS_PI5=1
+  fi
+
+  local VARIANT="b"
+  if [[ $IS_PI5 -eq 1 ]]; then
+    VARIANT="w"
+  fi
+
+  local PREFERRED_LIB="$LIB_SOURCE_DIR/DEV_Config_${SYSTEM_BITS}_${VARIANT}.so"
+  local COPIED=0
+
+  if [[ -f "$PREFERRED_LIB" ]]; then
+    sudo install -m 755 "$PREFERRED_LIB" "$TARGET_DIR/"
+    echo_success "\tInstalled Waveshare native library $(basename "$PREFERRED_LIB") to $TARGET_DIR"
+    COPIED=1
+  fi
+
+  if [[ $COPIED -eq 0 ]]; then
+    for lib in "$LIB_SOURCE_DIR/DEV_Config_64_b.so" "$LIB_SOURCE_DIR/DEV_Config_64_w.so"; do
+      if [[ -f "$lib" ]]; then
+        sudo install -m 755 "$lib" "$TARGET_DIR/"
+        echo_success "\tInstalled Waveshare native library $(basename "$lib") to $TARGET_DIR"
+        COPIED=1
+      fi
+    done
+  fi
+
+  if [[ $COPIED -eq 0 ]]; then
+    echo_warning "\tUnable to install Waveshare native libraries. Ensure DEV_Config_64_b.so / DEV_Config_64_w.so exist in $LIB_SOURCE_DIR"
+  fi
+}
+
 echo_success() {
   echo -e "$1 [\e[32m\xE2\x9C\x94\e[0m]"
 }
@@ -201,6 +249,10 @@ echo_header() {
 
 echo_error() {
   echo -e "${red}$1${normal} [\e[31m\xE2\x9C\x98\e[0m]\n"
+}
+
+echo_warning() {
+  echo -e "${yellow}$1${normal} [\e[33m!\e[0m]"
 }
 
 echo_blue() {
@@ -386,6 +438,7 @@ stop_service
 # fetch the WS display driver if defined.
 if [[ -n "$WS_TYPE" ]]; then
   fetch_waveshare_driver
+  install_waveshare_native_libraries
 fi
 enable_interfaces
 install_debian_dependencies
