@@ -83,12 +83,8 @@ fetch_waveshare_driver() {
 
   # Attempt to download the file
   if [ -f "$LOCAL_DRIVER_SOURCE" ]; then
-    if [ -f "$DRIVER_FILE" ] && cmp -s "$LOCAL_DRIVER_SOURCE" "$DRIVER_FILE"; then
-      echo_success "\tWaveshare driver '$WS_TYPE.py' already matches the packaged version at $DRIVER_FILE"
-    else
-      cp "$LOCAL_DRIVER_SOURCE" "$DRIVER_FILE"
-      echo_success "\tWaveshare driver '$WS_TYPE.py' copied from local repository to $DRIVER_FILE"
-    fi
+    cp "$LOCAL_DRIVER_SOURCE" "$DRIVER_FILE"
+    echo_success "\tWaveshare driver '$WS_TYPE.py' copied from local repository to $DRIVER_FILE"
   elif [ -f "$DRIVER_FILE" ]; then
     echo_success "\tWaveshare driver '$WS_TYPE.py' already exists at $DRIVER_FILE"
   elif curl --silent --fail -o "$DRIVER_FILE" "$DRIVER_URL"; then
@@ -103,7 +99,7 @@ fetch_waveshare_driver() {
   EPD_CONFIG_FILE="$DRIVER_DEST/epdconfig.py"
   LOCAL_EPD_CONFIG_SOURCE="$SCRIPT_DIR/waveshare_drivers/epdconfig.py"
   EPD_CONFIG_URL="https://raw.githubusercontent.com/waveshareteam/e-Paper/refs/heads/master/RaspberryPi_JetsonNano/python/lib/waveshare_epd/epdconfig.py"
-  if [ -f "$LOCAL_EPD_CONFIG_SOURCE" ]; then
+  if [ -f "$EPD_CONFIG_FILE" ]; then
     if [ -f "$EPD_CONFIG_FILE" ] && cmp -s "$LOCAL_EPD_CONFIG_SOURCE" "$EPD_CONFIG_FILE"; then
       echo_success "\tWaveshare epdconfig file already matches the packaged version at $EPD_CONFIG_FILE"
     else
