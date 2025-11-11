@@ -97,23 +97,40 @@ fetch_waveshare_driver() {
   fi
 
   EPD_CONFIG_FILE="$DRIVER_DEST/epdconfig.py"
-  LOCAL_EPD_CONFIG_SOURCE="$SCRIPT_DIR/waveshare_drivers/epdconfig.py"
-  EPD_CONFIG_URL="https://raw.githubusercontent.com/waveshareteam/e-Paper/refs/heads/master/RaspberryPi_JetsonNano/python/lib/waveshare_epd/epdconfig.py"
+LOCAL_EPD_CONFIG_SOURCE="$SCRIPT_DIR/waveshare_drivers/epdconfig.py"
+EPD_CONFIG_URL="https://raw.githubusercontent.com/waveshareteam/e-Paper/refs/heads/master/RaspberryPi_JetsonNano/python/lib/waveshare_epd/epdconfig.py"
+
+if [ -f "$LOCAL_EPD_CONFIG_SOURCE" ]; then
+  # Local source exists
   if [ -f "$EPD_CONFIG_FILE" ]; then
-    if [ -f "$EPD_CONFIG_FILE" ] && cmp -s "$LOCAL_EPD_CONFIG_SOURCE" "$EPD_CONFIG_FILE"; then
-      echo_success "\tWaveshare epdconfig file already matches the packaged version at $EPD_CONFIG_FILE"
+    # Destination exists: compare and copy only if different
+    if cmp -s "$LOCAL_EPD_CONFIG_SOURCE" "$EPD_CONFIG_FILE"; then
+      echo_success "\tWaveshare epdconfig already matches packaged version at $EPD_CONFIG_FILE"
     else
-      cp "$LOCAL_EPD_CONFIG_SOURCE" "$EPD_CONFIG_FILE"
-      echo_success "\tWaveshare epdconfig file copied from local repository to $EPD_CONFIG_FILE"
+      cp -f "$LOCAL_EPD_CONFIG_SOURCE" "$EPD_CONFIG_FILE"
+      echo_success "\tWaveshare epdconfig updated from local source to $EPD_CONFIG_FILE"
     fi
-  elif [ -f "$EPD_CONFIG_FILE" ]; then
-    echo_success "\tWaveshare epdconfig file already exists at $EPD_CONFIG_FILE"
-  elif curl --silent --fail -o "$EPD_CONFIG_FILE" "$EPD_CONFIG_URL"; then
-    echo_success "\tWaveshare epdconfig file successfully downloaded to $EPD_CONFIG_FILE"
   else
-    echo_error "ERROR: Failed to download Waveshare epdconfig file."
-    exit 1
+    # No destination: copy local source
+    cp -f "$LOCAL_EPD_CONFIG_SOURCE" "$EPD_CONFIG_FILE"
+    echo_success "\tWaveshare epdconfig copied from local source to $EPD_CONFIG_FILE"
   fi
+
+else
+  # No local source
+  if [ -f "$EPD_CONFIG_FILE" ]; then
+    # Destination exists: do nothing
+    echo_success "\tWaveshare epdconfig already exists at $EPD_CONFIG_FILE (no local source; leaving as-is)"
+  else
+    # Neither exists: download
+    if curl --silent --fail -o "$EPD_CONFIG_FILE" "$EPD_CONFIG_URL"; then
+      echo_success "\tWaveshare epdconfig downloaded to $EPD_CONFIG_FILE"
+    else
+      echo_error "ERROR: Failed to download Waveshare epdconfig file."
+      exit 1
+    fi
+  fi
+fi
 }
 
 enable_interfaces(){
