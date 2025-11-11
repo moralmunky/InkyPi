@@ -108,6 +108,28 @@ def _apply_clarity(img, clarity):
     return img.filter(ImageFilter.UnsharpMask(radius=radius, percent=percent, threshold=2))
 
 
+def _apply_gamma(img, gamma):
+    if gamma <= 0 or abs(gamma - 1.0) < 1e-3:
+        return img
+
+    inv_gamma = 1.0 / gamma
+    lut = [int(pow(i / 255.0, inv_gamma) * 255 + 0.5) for i in range(256)]
+
+    mode = img.mode
+    if mode in ("RGB", "L", "CMYK"):
+        return img.point(lut * len(img.getbands()))
+    elif mode in ("RGBA", "LA"):
+        channels = list(img.split())
+        for idx, channel in enumerate(channels):
+            if idx == len(channels) - 1:  # keep alpha unchanged
+                continue
+            channels[idx] = channel.point(lut)
+        return Image.merge(mode, channels)
+    else:
+        rgb = img.convert("RGB").point(lut * 3)
+        return rgb.convert(mode)
+
+
 def apply_image_enhancement(img, image_settings=None):
     image_settings = image_settings or {}
 
@@ -128,8 +150,7 @@ def apply_image_enhancement(img, image_settings=None):
 
     # Apply Gamma
     gamma = image_settings.get("gamma", 1.0)
-    if abs(gamma - 1.0) > 1e-3:
-        img = ImageOps.gamma(img, gamma)
+    img = _apply_gamma(img, gamma)
 
     # Apply temperature/tint shifts
     img = _apply_temperature_tint(
