@@ -294,6 +294,16 @@ class EPD():
 
         l_channel, a_channel, b_channel = saturation_first.convert("LAB").split()
 
+        # Weight LAB channels toward purple in red-blue transitions
+        def _bias_channel(channel, delta):
+            if delta == 0:
+                return channel
+            lut = [max(0, min(255, i + delta)) for i in range(256)]
+            return channel.point(lut)
+
+        a_channel = _bias_channel(a_channel, 4)
+        b_channel = _bias_channel(b_channel, -6)
+
         l_dithered = l_channel.quantize(
             colors=32,
             dither=Image.FLOYDSTEINBERG
